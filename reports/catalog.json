@@ -1,0 +1,102 @@
+{
+  "formatVersion": 2,
+  "generatedAt": "2026-11-14T13:50:35.309Z",
+  "mode": "compare",
+  "verdict": "contract_risk_detected",
+  "toolCounts": {
+    "before": 4,
+    "after": 3
+  },
+  "findings": [
+    {
+      "severity": "breaking",
+      "code": "tool_removed",
+      "tool": "legacy_status",
+      "path": "/tools/legacy_status",
+      "message": "Tool is no longer advertised; existing calls to this name may fail."
+    },
+    {
+      "severity": "breaking",
+      "code": "allowed_values_changed",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/properties/mode/enum",
+      "message": "Input enum/const restricts permitted values."
+    },
+    {
+      "severity": "breaking",
+      "code": "required_added",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/required",
+      "message": "Property \"limit\" is now required; existing calls may omit it."
+    },
+    {
+      "severity": "info",
+      "code": "property_added",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/properties/limit",
+      "message": "Declared input property added."
+    }
+  ],
+  "cases": [],
+  "limitations": [
+    "Static findings describe declared contract risks, not proven failures of every consumer.",
+    "Schema analysis covers common keywords; it is not a complete JSON Schema subtype checker.",
+    "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
+    "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
+  ],
+  "sources": {
+    "before": "baseline.json",
+    "after": "candidate.json"
+  },
+  "summary": {
+    "total": 4,
+    "severityCounts": {
+      "breaking": 3,
+      "review": 0,
+      "info": 1,
+      "other": 0
+    },
+    "detailedFindings": [
+      {
+        "severity": "breaking",
+        "code": "tool_removed",
+        "tool": "legacy_status",
+        "path": "/tools/legacy_status",
+        "message": "Tool is no longer advertised; existing calls to this name may fail."
+      },
+      {
+        "severity": "breaking",
+        "code": "allowed_values_changed",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/properties/mode/enum",
+        "message": "Input enum/const restricts permitted values."
+      },
+      {
+        "severity": "breaking",
+        "code": "required_added",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/required",
+        "message": "Property \"limit\" is now required; existing calls may omit it."
+      },
+      {
+        "severity": "info",
+        "code": "property_added",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/properties/limit",
+        "message": "Declared input property added."
+      }
+    ],
+    "textOnlyMetadata": {
+      "count": 0,
+      "titleCount": 0,
+      "descriptionCount": 0,
+      "tools": [],
+      "severityCounts": {
+        "breaking": 0,
+        "review": 0,
+        "info": 0,
+        "other": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "formatVersion": 2,
+  "generatedAt": "2026-11-14T13:50:52.158Z",
+  "mode": "replay",
+  "verdict": "no_detected_issues_in_checked_scope",
+  "toolCounts": {
+    "before": 4,
+    "after": 4
+  },
+  "findings": [],
+  "cases": [
+    {
+      "id": "price-keeps-major-currency-units",
+      "tool": "lookup_item",
+      "status": "pass",
+      "before": "success",
+      "after": "success",
+      "failures": []
+    },
+    {
+      "id": "existing-search-request",
+      "tool": "search_items",
+      "status": "pass",
+      "before": "success",
+      "after": "success",
+      "failures": []
+    },
+    {
+      "id": "legacy-client-status",
+      "tool": "legacy_status",
+      "status": "pass",
+      "before": "success",
+      "after": "success",
+      "failures": []
+    },
+    {
+      "id": "unchanged-health-check",
+      "tool": "health",
+      "status": "pass",
+      "before": "success",
+      "after": "success",
+      "failures": []
+    }
+  ],
+  "limitations": [
+    "Static findings describe declared contract risks, not proven failures of every consumer.",
+    "Schema analysis covers common keywords; it is not a complete JSON Schema subtype checker.",
+    "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
+    "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
+  ],
+  "protocolVersions": {
+    "before": "2025-11-25",
+    "after": "2025-11-25"
+  },
+  "servers": {
+    "before": {
+      "name": "upgrade-check-demo",
+      "version": "baseline"
+    },
+    "after": {
+      "name": "upgrade-check-demo",
+      "version": "baseline"
+    }
+  },
+  "sources": {
+    "before": "before-server.json",
+    "after": "before-server.json",
+    "cases": "cases.json"
+  },
+  "summary": {
+    "total": 0,
+    "severityCounts": {
+      "breaking": 0,
+      "review": 0,
+      "info": 0,
+      "other": 0
+    },
+    "detailedFindings": [],
+    "textOnlyMetadata": {
+      "count": 0,
+      "titleCount": 0,
+      "descriptionCount": 0,
+      "tools": [],
+      "severityCounts": {
+        "breaking": 0,
+        "review": 0,
+        "info": 0,
+        "other": 0
+      }
+    }
+  }
+}

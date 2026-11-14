@@ -1,0 +1,12 @@
+# Local reports, environments, and credentials
+/work/
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.egg-info/
+.env*
+*.log
+.DS_Store
+Thumbs.db

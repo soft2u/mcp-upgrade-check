@@ -1,0 +1,6 @@
+interface:
+  display_name: "MCP Upgrade Check"
+  short_description: "Compare MCP contracts and replay upgrade checks"
+  default_prompt: "Use $mcp-upgrade-check to compare my baseline and candidate MCP server versions and report evidenced compatibility risks."
+policy:
+  allow_implicit_invocation: true

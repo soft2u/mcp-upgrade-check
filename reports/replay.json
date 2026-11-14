@@ -1,0 +1,159 @@
+{
+  "formatVersion": 2,
+  "generatedAt": "2026-11-14T13:50:52.175Z",
+  "mode": "replay",
+  "verdict": "regression_detected",
+  "toolCounts": {
+    "before": 4,
+    "after": 3
+  },
+  "findings": [
+    {
+      "severity": "breaking",
+      "code": "tool_removed",
+      "tool": "legacy_status",
+      "path": "/tools/legacy_status",
+      "message": "Tool is no longer advertised; existing calls to this name may fail."
+    },
+    {
+      "severity": "breaking",
+      "code": "allowed_values_changed",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/properties/mode/enum",
+      "message": "Input enum/const restricts permitted values."
+    },
+    {
+      "severity": "breaking",
+      "code": "required_added",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/required",
+      "message": "Property \"limit\" is now required; existing calls may omit it."
+    },
+    {
+      "severity": "info",
+      "code": "property_added",
+      "tool": "search_items",
+      "path": "/tools/search_items/inputSchema/properties/limit",
+      "message": "Declared input property added."
+    }
+  ],
+  "cases": [
+    {
+      "id": "price-keeps-major-currency-units",
+      "tool": "lookup_item",
+      "status": "regression",
+      "before": "success",
+      "after": "success",
+      "failures": [
+        {
+          "path": "/structuredContent/price",
+          "check": "equals",
+          "reason": "assertion_failed"
+        }
+      ],
+      "reason": "Candidate violated an assertion or a declared stable-output comparison."
+    },
+    {
+      "id": "existing-search-request",
+      "tool": "search_items",
+      "status": "regression",
+      "before": "success",
+      "after": "tool_error",
+      "failures": [],
+      "reason": "Baseline succeeded; candidate returned a tool or protocol error."
+    },
+    {
+      "id": "legacy-client-status",
+      "tool": "legacy_status",
+      "status": "regression",
+      "before": "success",
+      "after": "missing_tool",
+      "failures": [],
+      "reason": "Baseline succeeded; candidate no longer advertises this tool. Candidate call was not attempted."
+    },
+    {
+      "id": "unchanged-health-check",
+      "tool": "health",
+      "status": "pass",
+      "before": "success",
+      "after": "success",
+      "failures": []
+    }
+  ],
+  "limitations": [
+    "Static findings describe declared contract risks, not proven failures of every consumer.",
+    "Schema analysis covers common keywords; it is not a complete JSON Schema subtype checker.",
+    "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
+    "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
+  ],
+  "protocolVersions": {
+    "before": "2025-11-25",
+    "after": "2025-11-25"
+  },
+  "servers": {
+    "before": {
+      "name": "upgrade-check-demo",
+      "version": "baseline"
+    },
+    "after": {
+      "name": "upgrade-check-demo",
+      "version": "candidate"
+    }
+  },
+  "sources": {
+    "before": "before-server.json",
+    "after": "after-server.json",
+    "cases": "cases.json"
+  },
+  "summary": {
+    "total": 4,
+    "severityCounts": {
+      "breaking": 3,
+      "review": 0,
+      "info": 1,
+      "other": 0
+    },
+    "detailedFindings": [
+      {
+        "severity": "breaking",
+        "code": "tool_removed",
+        "tool": "legacy_status",
+        "path": "/tools/legacy_status",
+        "message": "Tool is no longer advertised; existing calls to this name may fail."
+      },
+      {
+        "severity": "breaking",
+        "code": "allowed_values_changed",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/properties/mode/enum",
+        "message": "Input enum/const restricts permitted values."
+      },
+      {
+        "severity": "breaking",
+        "code": "required_added",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/required",
+        "message": "Property \"limit\" is now required; existing calls may omit it."
+      },
+      {
+        "severity": "info",
+        "code": "property_added",
+        "tool": "search_items",
+        "path": "/tools/search_items/inputSchema/properties/limit",
+        "message": "Declared input property added."
+      }
+    ],
+    "textOnlyMetadata": {
+      "count": 0,
+      "titleCount": 0,
+      "descriptionCount": 0,
+      "tools": [],
+      "severityCounts": {
+        "breaking": 0,
+        "review": 0,
+        "info": 0,
+        "other": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "id": "price-keeps-major-currency-units",
+      "tool": "lookup_item",
+      "arguments": {"id":"demo-1"},
+      "assertions": [
+        {"path":"/structuredContent/price","op":"equals","value":19.99},
+        {"path":"/structuredContent/currency","op":"equals","value":"EUR"}
+      ],
+      "comparePaths": ["/structuredContent/name"]
+    },
+    {
+      "id": "existing-search-request",
+      "tool": "search_items",
+      "arguments": {"query":"demo","mode":"prefix"},
+      "assertions": [{"path":"/structuredContent/items","op":"type","value":"array"}]
+    },
+    {
+      "id": "legacy-client-status",
+      "tool": "legacy_status",
+      "arguments": {},
+      "assertions": [{"path":"/structuredContent/status","op":"equals","value":"ok"}]
+    },
+    {
+      "id": "unchanged-health-check",
+      "tool": "health",
+      "arguments": {},
+      "comparePaths": ["/structuredContent/status"]
+    }
+  ]
+}

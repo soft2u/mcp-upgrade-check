@@ -1,0 +1,23 @@
+{
+  "tools": [
+    {
+      "name": "lookup_item",
+      "description": "Return a test item with its price in major currency units.",
+      "inputSchema": {"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false},
+      "outputSchema": {"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"price":{"type":"number"},"currency":{"type":"string"}},"required":["id","name","price","currency"]},
+      "annotations": {"readOnlyHint":true}
+    },
+    {
+      "name": "search_items",
+      "inputSchema": {"type":"object","properties":{"query":{"type":"string"},"mode":{"type":"string","enum":["exact","prefix"]}},"required":["query"],"additionalProperties":false}
+    },
+    {
+      "name": "legacy_status",
+      "inputSchema": {"type":"object","additionalProperties":false}
+    },
+    {
+      "name": "health",
+      "inputSchema": {"type":"object","additionalProperties":false}
+    }
+  ]
+}

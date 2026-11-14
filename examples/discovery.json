@@ -1,0 +1,24 @@
+{
+  "sources": [
+    {
+      "id": "component",
+      "discoveryTool": "search_actions",
+      "executionTool": "execute_action",
+      "arguments": { "query": null, "limit": 1000, "strategy": "bm25" },
+      "actionsPath": "/structuredContent/result/actions",
+      "successPath": "/structuredContent/success",
+      "successValue": true,
+      "fields": {
+        "name": "name",
+        "description": "description",
+        "inputSchema": "input_schema",
+        "outputSchema": "output_schema"
+      },
+      "completeness": {
+        "mode": "limit",
+        "allActionsRequested": true,
+        "limit": 1000
+      }
+    }
+  ]
+}

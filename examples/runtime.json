@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "runtimeDir": "../work/baseline-runtime",
+  "python": "python",
+  "uv": "uv",
+  "packages": [
+    { "name": "shared", "path": "../../my-server/packages/shared" },
+    { "name": "server", "path": "../../my-server/packages/server" }
+  ],
+  "requirements": ["fastmcp==3.3.1"],
+  "server": {
+    "module": "my_server",
+    "args": [],
+    "env": { "PYTHONUTF8": "1" }
+  },
+  "timeoutMs": 180000
+}
