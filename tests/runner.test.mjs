@@ -156,6 +156,16 @@ createInterface({ input: process.stdin }).on('line', line => {
   } else if (m.method === 'tools/call') {
     if (!initialized || pages !== 2 || m.params?.name !== 'probe') process.exit(92);
     if (mode === 'hang') return;
+    if (mode === 'protocol-error') {
+      process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: 'PRIVATE-PROTOCOL-ERROR' } }) + '\n');
+      return;
+    }
+    if (mode === 'tool-error' || mode === 'wrong-tool-error' || mode === 'malformed-tool-error') {
+      send(m.id, { content: [{ type: 'text', text: 'PRIVATE-REFUSAL-' + label }],
+        isError: mode === 'malformed-tool-error' ? 'true' : true,
+        structuredContent: { code: mode === 'wrong-tool-error' ? 'OTHER_ERROR' : 'INVALID_PARAMS' } });
+      return;
+    }
     const value = mode === 'changed' ? 'PRIVATE-CANDIDATE-RESULT' : 'PRIVATE-BASELINE-RESULT';
     send(m.id, { content: [{ type: 'text', text: 'PRIVATE-UNSELECTED-' + label }], structuredContent: { value, timestamp: label } });
   }
@@ -247,6 +257,51 @@ test('CLI detects changed selected behavior even when both tool catalogs are ide
   assert.equal(report.cases[0].status, 'regression');
   assert.ok(report.cases[0].failures.some(failure => failure.reason === 'selected_value_changed'));
   assert.doesNotMatch(reportText + await readFile(join(f.dir, 'report.md'), 'utf8'), /PRIVATE-/);
+});
+
+test('CLI checks an explicitly expected refusal on both versions without publishing error bodies', async t => {
+  const cases = [{ id: 'expected-refusal', tool: 'probe', arguments: {}, expectedStatus: 'tool_error',
+    assertions: [{ path: '/isError', op: 'equals', value: true },
+      { path: '/structuredContent/code', op: 'equals', value: 'INVALID_PARAMS' }] }];
+  const f = await fixture(t, 'tool-error', 'tool-error', cases);
+  const result = await runCLI([...f.args, '--execute-cases']);
+  assert.equal(result.code, 0, result.stderr);
+  const report = JSON.parse(await readFile(f.output, 'utf8'));
+  assert.equal(report.formatVersion, 3);
+  assert.equal(report.cases[0].status, 'pass');
+  assert.equal(report.cases[0].checks.before.status, 'pass');
+  assert.equal(report.cases[0].checks.after.status, 'pass');
+  const markdown = await readFile(join(f.dir, 'report.md'), 'utf8');
+  assert.doesNotMatch(JSON.stringify(report) + markdown + result.stdout + result.stderr, /PRIVATE-/);
+});
+
+test('CLI protocol and malformed tool errors never satisfy an expected tool error', async t => {
+  const cases = [{ id: 'expected-refusal', tool: 'probe', arguments: {}, expectedStatus: 'tool_error',
+    assertions: [{ path: '/isError', op: 'equals', value: true }] }];
+  for (const mode of ['protocol-error', 'malformed-tool-error']) {
+    const f = await fixture(t, 'tool-error', mode, cases);
+    const result = await runCLI([...f.args, '--execute-cases']);
+    assert.equal(result.code, 1, result.stderr);
+    const report = JSON.parse(await readFile(f.output, 'utf8'));
+    assert.equal(report.cases[0].after, 'protocol_error');
+    assert.equal(report.cases[0].checks.after.status, 'fail');
+    assert.equal(report.cases[0].status, 'regression');
+    assert.doesNotMatch(JSON.stringify(report), /PRIVATE-/);
+  }
+});
+
+test('CLI retains passing candidate checks when baseline assertions fail', async t => {
+  const cases = [makeCase({ comparePaths: [], assertions: [
+    { path: '/structuredContent/value', op: 'equals', value: 'PRIVATE-CANDIDATE-RESULT' },
+  ] })];
+  const f = await fixture(t, 'stable', 'changed', cases);
+  const result = await runCLI([...f.args, '--execute-cases']);
+  assert.equal(result.code, 3, result.stderr);
+  const report = JSON.parse(await readFile(f.output, 'utf8'));
+  assert.equal(report.cases[0].status, 'inconclusive');
+  assert.equal(report.cases[0].checks.before.status, 'fail');
+  assert.equal(report.cases[0].checks.after.status, 'pass');
+  assert.doesNotMatch(JSON.stringify(report) + await readFile(join(f.dir, 'report.md'), 'utf8'), /PRIVATE-/);
 });
 
 test('CLI timeout is inconclusive, prevents subsequent calls, and terminates both launched servers', async t => {

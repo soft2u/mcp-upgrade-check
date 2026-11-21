@@ -7,6 +7,7 @@ import { compareCatalogs } from './schema-diff.mjs';
 import { readServerConfig, StdioClient } from './stdio.mjs';
 import { renderMarkdown, summarizeFindings } from './report.mjs';
 import { validateDiscoveryManifest, discoverActions, normalizeDiscovery, compareDiscovered } from './discovery.mjs';
+import { measureCatalogPayloads } from './metrics.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const readJSON = async path => JSON.parse((await readFile(path, 'utf8')).replace(/^\uFEFF/, ''));
@@ -48,20 +49,22 @@ export function validateCases(input) {
     throw new Error('Case file must contain a nonempty cases array.');
   const ids = new Set();
   for (const c of input.cases) {
-    if (!object(c) || Object.keys(c).some(k => !['id', 'tool', 'arguments', 'assertions', 'comparePaths'].includes(k)))
+    if (!object(c) || Object.keys(c).some(k => !['id', 'tool', 'arguments', 'assertions', 'comparePaths', 'expectedStatus'].includes(k)))
       throw new Error('Case contains an unknown field.');
     if (typeof c.id !== 'string' || !c.id || ids.has(c.id)) throw new Error('Case ids must be nonempty and unique.');
     ids.add(c.id);
     if (typeof c.tool !== 'string' || !c.tool || !object(c.arguments)) throw new Error('Each case needs a tool name and arguments object.');
+    if (c.expectedStatus !== undefined && !['success', 'tool_error'].includes(c.expectedStatus))
+      throw new Error('expectedStatus must be success or tool_error. Protocol and transport errors cannot be expected outcomes.');
     if (c.assertions !== undefined && !Array.isArray(c.assertions)) throw new Error('assertions must be an array.');
     if (c.comparePaths !== undefined && !Array.isArray(c.comparePaths)) throw new Error('comparePaths must be an array.');
     if (!(c.assertions?.length || c.comparePaths?.length)) throw new Error('Each case needs at least one assertion or comparePaths entry.');
     for (const a of c.assertions ?? []) {
-      if (!object(a) || Object.keys(a).some(k => !['path', 'op', 'value'].includes(k)) || !['equals', 'exists', 'type'].includes(a.op))
-        throw new Error('Assertions support only path, op (equals/exists/type), and value.');
+      if (!object(a) || Object.keys(a).some(k => !['path', 'op', 'value'].includes(k)) || !['equals', 'exists', 'notExists', 'type'].includes(a.op))
+        throw new Error('Assertions support only path, op (equals/exists/notExists/type), and value.');
       validatePointer(a.path);
-      if (a.op !== 'exists' && !Object.hasOwn(a, 'value')) throw new Error('equals/type assertions require value.');
-      if (a.op === 'exists' && Object.hasOwn(a, 'value')) throw new Error('exists assertions must omit value.');
+      if (['equals', 'type'].includes(a.op) && !Object.hasOwn(a, 'value')) throw new Error('equals/type assertions require value.');
+      if (['exists', 'notExists'].includes(a.op) && Object.hasOwn(a, 'value')) throw new Error('exists/notExists assertions must omit value.');
       if (a.op === 'type' && !['null', 'array', 'object', 'string', 'boolean', 'number', 'integer'].includes(a.value))
         throw new Error('Unknown assertion value type.');
     }
@@ -81,35 +84,67 @@ function typeMatches(value, type) {
 function assertionFailures(result, assertions) {
   return assertions.flatMap(a => {
     const entry = atPointer(result, a.path);
+    if (a.op === 'notExists') return entry.exists ? [{ path: a.path, check: a.op, reason: 'path_present' }] : [];
     const pass = entry.exists && (a.op === 'exists' || (a.op === 'equals' ? isDeepStrictEqual(entry.value, a.value) : typeMatches(entry.value, a.value)));
     return pass ? [] : [{ path: a.path, check: a.op, reason: entry.exists ? 'assertion_failed' : 'path_missing' }];
   });
 }
 
-export function evaluateCase(c, before, after) {
-  const result = { id: c.id, tool: c.tool, status: 'pass', before: before.status, after: after.status, failures: [] };
-  if (before.status !== 'success') {
-    return { ...result, status: 'inconclusive', reason: 'Baseline call did not succeed.' };
+function checkObservation(c, observation, side) {
+  if (['transport_error', 'not_run', 'missing_tool'].includes(observation.status)) return {
+    status: 'unavailable', failures: [],
+    reason: observation.status === 'missing_tool' ? 'Tool was not advertised; the call was not attempted.'
+      : observation.status === 'not_run' ? 'The call was not attempted after a session failure.'
+        : 'The session did not provide a usable response.',
+  };
+  if (observation.status !== (c.expectedStatus ?? 'success')) return {
+    status: 'fail', failures: [{ path: '', check: 'status', reason: 'unexpected_response_status' }],
+    reason: 'Response status did not match the explicitly expected outcome.',
+  };
+  const result = observation.result;
+  if (!object(result) || !Array.isArray(result.content)
+      || (result.isError !== undefined && typeof result.isError !== 'boolean')
+      || Boolean(result.isError) !== (observation.status === 'tool_error')) return {
+    status: 'fail', failures: [{ path: '', check: 'protocol', reason: 'invalid_tool_result' }],
+    reason: 'Response was not a valid tool result for its observed status.',
+  };
+  const failures = assertionFailures(result, c.assertions ?? []);
+  for (const path of c.comparePaths ?? []) {
+    if (!atPointer(result, path).exists)
+      failures.push({ path, check: 'compare', reason: side === 'before' ? 'baseline_path_missing' : 'path_missing' });
   }
-  const oldFailures = assertionFailures(before.result, c.assertions ?? []);
-  const missing = (c.comparePaths ?? []).filter(path => !atPointer(before.result, path).exists);
-  if (oldFailures.length || missing.length) return {
-    ...result, status: 'inconclusive', reason: 'Baseline does not satisfy the case; fix the fixture before attributing a failure to the upgrade.',
-    failures: [...oldFailures, ...missing.map(path => ({ path, check: 'compare', reason: 'baseline_path_missing' }))],
+  return { status: failures.length ? 'fail' : 'pass', failures };
+}
+
+export function evaluateCase(c, before, after) {
+  // Always evaluate both observations. A baseline failure prevents attribution,
+  // but must not erase evidence that the candidate passed or failed its checks.
+  const checks = { before: checkObservation(c, before, 'before'), after: checkObservation(c, after, 'after') };
+  const result = { id: c.id, tool: c.tool, status: 'pass', expectedStatus: c.expectedStatus ?? 'success',
+    before: before.status, after: after.status, checks, failures: [] };
+  if (checks.before.status !== 'pass') return {
+    ...result, status: 'inconclusive',
+    reason: 'Baseline does not satisfy the case; review the fixture and both observations before attributing a failure to the upgrade.',
+    failures: checks.before.failures,
   };
   if (after.status === 'transport_error' || after.status === 'not_run')
     return { ...result, status: 'inconclusive', reason: 'Candidate session failed; cause requires investigation.' };
   if (after.status === 'missing_tool')
-    return { ...result, status: 'regression', reason: 'Baseline succeeded; candidate no longer advertises this tool. Candidate call was not attempted.' };
-  if (after.status !== 'success')
-    return { ...result, status: 'regression', reason: 'Baseline succeeded; candidate returned a tool or protocol error.' };
-  result.failures = assertionFailures(after.result, c.assertions ?? []);
+    return { ...result, status: 'regression', reason: 'Baseline satisfied the case; candidate no longer advertises this tool. Candidate call was not attempted.' };
+  if (checks.after.status !== 'pass') return {
+    ...result, status: 'regression', failures: checks.after.failures,
+    reason: 'Baseline satisfied the case; candidate violated its expected response status or assertions.',
+  };
   for (const path of c.comparePaths ?? []) {
     const candidate = atPointer(after.result, path);
-    if (!candidate.exists || !isDeepStrictEqual(atPointer(before.result, path).value, candidate.value))
-      result.failures.push({ path, check: 'compare', reason: candidate.exists ? 'selected_value_changed' : 'path_missing' });
+    if (!isDeepStrictEqual(atPointer(before.result, path).value, candidate.value))
+      result.failures.push({ path, check: 'compare', reason: 'selected_value_changed' });
   }
-  if (result.failures.length) { result.status = 'regression'; result.reason = 'Candidate violated an assertion or a declared stable-output comparison.'; }
+  if (result.failures.length) {
+    checks.after.status = 'fail';
+    checks.after.failures = result.failures;
+    result.status = 'regression'; result.reason = 'Candidate violated a declared stable-output comparison.';
+  }
   return result;
 }
 
@@ -144,8 +179,9 @@ function makeReport(mode, before, after, findings, cases = []) {
   if (findings.some(f => f.severity === 'review') || cases.some(c => c.status === 'inconclusive')) verdict = 'review_required';
   if (findings.some(f => f.severity === 'breaking')) verdict = 'contract_risk_detected';
   if (cases.some(c => c.status === 'regression')) verdict = 'regression_detected';
-  return { formatVersion: 2, generatedAt: new Date().toISOString(), mode, verdict,
-    toolCounts: { before: before.length, after: after.length }, findings, cases, limitations: LIMITATIONS };
+  return { formatVersion: 3, generatedAt: new Date().toISOString(), mode, verdict,
+    toolCounts: { before: before.length, after: after.length }, findings, cases, limitations: LIMITATIONS,
+    ...(mode !== 'compare-actions' ? { metrics: measureCatalogPayloads(before, after) } : {}) };
 }
 
 function parseArgs(args) {
@@ -227,7 +263,7 @@ export async function main(args) {
   report.summary = summarizeFindings(report.findings);
   if (report.discovery) report.limitations = [...report.limitations,
     'Nested discovery is limited to the configured sources, backend, and completeness declarations. It does not execute discovered actions.',
-    'Only mapped action names, descriptions, and input/output schemas are compared; other metadata such as execution mode and workflow hints requires separate review.'];
+    'Only mapped action names, descriptions, input/output schemas, and explicitly mapped metadata are compared; unmapped action metadata remains outside this check.'];
   await mkdir(dirname(resolve(options.out)), { recursive: true });
   await writeFile(options.out, JSON.stringify(report, null, 2) + '\n', 'utf8');
   await writeFile(options.out.slice(0, -5) + '.md', renderMarkdown(report), 'utf8');

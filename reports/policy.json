@@ -1,0 +1,123 @@
+{
+  "formatVersion": 3,
+  "generatedAt": "2026-11-21T20:23:41.786Z",
+  "mode": "replay",
+  "verdict": "review_required",
+  "toolCounts": {
+    "before": 2,
+    "after": 2
+  },
+  "findings": [],
+  "cases": [
+    {
+      "id": "offline-policy",
+      "tool": "policy_status",
+      "status": "inconclusive",
+      "expectedStatus": "success",
+      "before": "success",
+      "after": "success",
+      "checks": {
+        "before": {
+          "status": "fail",
+          "failures": [
+            {
+              "path": "/structuredContent/liveDiscoveryEnabled",
+              "check": "equals",
+              "reason": "assertion_failed"
+            }
+          ]
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
+      "failures": [
+        {
+          "path": "/structuredContent/liveDiscoveryEnabled",
+          "check": "equals",
+          "reason": "assertion_failed"
+        }
+      ],
+      "reason": "Baseline does not satisfy the case; review the fixture and both observations before attributing a failure to the upgrade."
+    },
+    {
+      "id": "write-is-correctly-refused",
+      "tool": "write_item",
+      "status": "pass",
+      "expectedStatus": "tool_error",
+      "before": "tool_error",
+      "after": "tool_error",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
+      "failures": []
+    }
+  ],
+  "limitations": [
+    "Static findings describe declared contract risks, not proven failures of every consumer.",
+    "Schema analysis covers common keywords; it is not a complete JSON Schema subtype checker.",
+    "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
+    "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
+  ],
+  "metrics": {
+    "catalogPayload": {
+      "unit": "utf8_bytes",
+      "representation": "compact_json_tools_array",
+      "beforeBytes": 287,
+      "afterBytes": 287,
+      "deltaBytes": 0,
+      "deltaPercent": 0,
+      "largestIncreases": [],
+      "interpretation": "Serialized catalog size only; not tokens, latency, or task efficiency."
+    }
+  },
+  "protocolVersions": {
+    "before": "2025-11-25",
+    "after": "2025-11-25"
+  },
+  "servers": {
+    "before": {
+      "name": "policy-demo",
+      "version": "baseline"
+    },
+    "after": {
+      "name": "policy-demo",
+      "version": "candidate"
+    }
+  },
+  "sources": {
+    "before": "policy-before-server.json",
+    "after": "policy-after-server.json",
+    "cases": "policy-cases.json"
+  },
+  "summary": {
+    "total": 0,
+    "severityCounts": {
+      "breaking": 0,
+      "review": 0,
+      "info": 0,
+      "other": 0
+    },
+    "detailedFindings": [],
+    "textOnlyMetadata": {
+      "count": 0,
+      "titleCount": 0,
+      "descriptionCount": 0,
+      "tools": [],
+      "severityCounts": {
+        "breaking": 0,
+        "review": 0,
+        "info": 0,
+        "other": 0
+      }
+    }
+  }
+}

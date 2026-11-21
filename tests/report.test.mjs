@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compareCatalogs } from '../scripts/schema-diff.mjs';
 import { renderMarkdown, summarizeFindings } from '../scripts/report.mjs';
+import { measureCatalogPayloads } from '../scripts/metrics.mjs';
 
 const finding = (code, path, severity = 'review', message = code, tool = 'lookup') => ({ code, path, severity, message, tool });
 const metadata = (kind, tool = 'lookup') => finding('tool_metadata_changed', `/tools/${tool}/${kind}`, 'review', `${kind} was edited`, tool);
@@ -157,4 +158,35 @@ test('untrusted server text cannot inject Markdown links or HTML into the report
   assert.doesNotMatch(markdown, /<script>|!\[image\]/);
   assert.match(markdown, /\\<script\\>/);
   assert.match(markdown, /Only the supplied fixtures are covered/);
+});
+
+test('reports show candidate checks even when the baseline invalidates upgrade attribution', () => {
+  const cases = [{ id: 'disabled-policy', tool: 'status', status: 'inconclusive',
+    before: 'success', after: 'success', expectedStatus: 'success', failures: [],
+    reason: 'Baseline failed its declared checks.',
+    checks: { before: { status: 'fail', failures: [{ path: '/structuredContent/enabled', check: 'equals', reason: 'assertion_failed' }] },
+      after: { status: 'pass', failures: [] } } }];
+  const markdown = renderMarkdown(report([], cases));
+  assert.match(markdown, /baseline: \*\*fail\*\*; candidate: \*\*pass\*\*/);
+  assert.match(markdown, /inconclusive/);
+  assert.match(markdown, /Baseline \/structuredContent\/enabled/);
+});
+
+test('expected tool refusals remain compact passing cases', () => {
+  const cases = [{ id: 'refused-write', tool: 'write', status: 'pass',
+    before: 'tool_error', after: 'tool_error', expectedStatus: 'tool_error', failures: [] }];
+  const markdown = renderMarkdown(report([], cases));
+  assert.match(markdown, /Passed case IDs: refused-write/);
+  assert.match(markdown, /explicitly expected tool errors/);
+  assert.doesNotMatch(markdown, /\*\*pass\*\* refused-write/);
+});
+
+test('catalog measurements are separated from compatibility and efficiency claims', () => {
+  const metrics = measureCatalogPayloads([], [{ name: 'lookup', description: 'PRIVATE-CONTENT', inputSchema: { type: 'object' } }]);
+  const markdown = renderMarkdown(report([], [], { metrics }));
+  assert.match(markdown, /Catalog payload measurement/);
+  assert.match(markdown, /UTF-8 bytes/);
+  assert.match(markdown, /not a token count, latency measurement, or proof of task efficiency/);
+  assert.doesNotMatch(markdown, /PRIVATE-CONTENT/);
+  assert.doesNotMatch(renderMarkdown(report([], [], { metrics, mode: 'compare-actions' })), /Catalog payload measurement/);
 });

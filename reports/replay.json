@@ -1,6 +1,6 @@
 {
-  "formatVersion": 2,
-  "generatedAt": "2026-11-14T13:50:52.175Z",
+  "formatVersion": 3,
+  "generatedAt": "2026-11-21T20:23:41.836Z",
   "mode": "replay",
   "verdict": "regression_detected",
   "toolCounts": {
@@ -42,8 +42,25 @@
       "id": "price-keeps-major-currency-units",
       "tool": "lookup_item",
       "status": "regression",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "fail",
+          "failures": [
+            {
+              "path": "/structuredContent/price",
+              "check": "equals",
+              "reason": "assertion_failed"
+            }
+          ]
+        }
+      },
       "failures": [
         {
           "path": "/structuredContent/price",
@@ -51,32 +68,79 @@
           "reason": "assertion_failed"
         }
       ],
-      "reason": "Candidate violated an assertion or a declared stable-output comparison."
+      "reason": "Baseline satisfied the case; candidate violated its expected response status or assertions."
     },
     {
       "id": "existing-search-request",
       "tool": "search_items",
       "status": "regression",
+      "expectedStatus": "success",
       "before": "success",
       "after": "tool_error",
-      "failures": [],
-      "reason": "Baseline succeeded; candidate returned a tool or protocol error."
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "fail",
+          "failures": [
+            {
+              "path": "",
+              "check": "status",
+              "reason": "unexpected_response_status"
+            }
+          ],
+          "reason": "Response status did not match the explicitly expected outcome."
+        }
+      },
+      "failures": [
+        {
+          "path": "",
+          "check": "status",
+          "reason": "unexpected_response_status"
+        }
+      ],
+      "reason": "Baseline satisfied the case; candidate violated its expected response status or assertions."
     },
     {
       "id": "legacy-client-status",
       "tool": "legacy_status",
       "status": "regression",
+      "expectedStatus": "success",
       "before": "success",
       "after": "missing_tool",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "unavailable",
+          "failures": [],
+          "reason": "Tool was not advertised; the call was not attempted."
+        }
+      },
       "failures": [],
-      "reason": "Baseline succeeded; candidate no longer advertises this tool. Candidate call was not attempted."
+      "reason": "Baseline satisfied the case; candidate no longer advertises this tool. Candidate call was not attempted."
     },
     {
       "id": "unchanged-health-check",
       "tool": "health",
       "status": "pass",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
       "failures": []
     }
   ],
@@ -86,6 +150,25 @@
     "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
     "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
   ],
+  "metrics": {
+    "catalogPayload": {
+      "unit": "utf8_bytes",
+      "representation": "compact_json_tools_array",
+      "beforeBytes": 810,
+      "afterBytes": 762,
+      "deltaBytes": -48,
+      "deltaPercent": -5.93,
+      "largestIncreases": [
+        {
+          "tool": "search_items",
+          "beforeBytes": 197,
+          "afterBytes": 235,
+          "deltaBytes": 38
+        }
+      ],
+      "interpretation": "Serialized catalog size only; not tokens, latency, or task efficiency."
+    }
+  },
   "protocolVersions": {
     "before": "2025-11-25",
     "after": "2025-11-25"

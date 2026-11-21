@@ -12,7 +12,11 @@
         "name": "name",
         "description": "description",
         "inputSchema": "input_schema",
-        "outputSchema": "output_schema"
+        "outputSchema": "output_schema",
+        "metadata": {
+          "execution_mode": "execution_mode",
+          "workflow_hints": "workflow_hints"
+        }
       },
       "completeness": {
         "mode": "limit",

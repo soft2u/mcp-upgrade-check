@@ -12,7 +12,7 @@ Start from `examples/discovery.json`. This example describes a common search/exe
 - `discoveryTool` and `executionTool`: exact MCP tool names. The latter qualifies action identities; discovery never calls it.
 - `arguments`: explicit arguments for the discovery call.
 - `actionsPath`: JSON Pointer from the MCP tool result to its action array.
-- `fields`: property names within each action for `name`, and optionally `description`, `inputSchema`, and `outputSchema`. These are property names, not JSON Pointers. No schema is synthesized when a field is absent.
+- `fields`: property names within each action for `name`, and optionally `description`, `inputSchema`, and `outputSchema`. Optional `metadata` maps stable labels to other descriptor property names. These are literal property names, not JSON Pointers. No schema is synthesized when a field is absent.
 - Optional `successPath`: JSON Pointer to an application-level success indicator. Its expected scalar `successValue` defaults to `true`. This handles servers that return `{success:false}` inside an otherwise successful MCP response.
 - `completeness`: the evidence and adapter contract for whether the response covers every action.
 
@@ -64,6 +64,22 @@ Complete candidate discovery can establish that a previously observed action is 
 
 Missing input schemas require review and remain absent in normalization. Output schemas are compared when both are available, even if an input schema is missing. Output-schema availability is recorded for every action; optional output schemas absent on both sides are not fabricated or treated as removals. Supported schema differences use the same directional analysis as tool catalogs. The comparison does not execute the actions or prove behavior compatibility.
 
-Only mapped names, descriptions, and input/output schemas are compared. Other action fields, such as execution mode, preconditions, and workflow hints, need separate raw-response or source review when they matter. For historical captures whose request arguments are unknown, use `arguments: {}` as a required offline placeholder and leave completeness unknown; this is not evidence that the original call used empty arguments.
+Map additional action metadata explicitly when it matters to the upgrade:
+
+```json
+"fields": {
+  "name": "name",
+  "inputSchema": "input_schema",
+  "metadata": {
+    "execution_mode": "execution_mode",
+    "read_only": "readOnly",
+    "workflow_hints": "workflow_hints"
+  }
+}
+```
+
+Changes, additions, and removals of these mapped fields produce review findings. For example, an execution mode changing from offline to live requires review even with identical action schemas. A missing field is distinct from a present `null`; object key order is ignored and array order is preserved. Findings identify the action and field but omit raw metadata values. Inventory entries record field mapping and presence; internal normalized captures retain values for comparison and should be treated as source data.
+
+Unmapped action fields remain outside the comparison. Mapped metadata changes are observations requiring review, not proof that an action's behavior changed. For historical captures whose request arguments are unknown, use `arguments: {}` as a required offline placeholder and leave completeness unknown; this is not evidence that the original call used empty arguments.
 
 Library integration: `validateDiscoveryManifest(input)`, `discoverActions(client, tools, manifest)`, `normalizeDiscovery(capture, manifest)`, and `compareDiscovered(before, after)`. The client needs `request(method, params)` and may expose `fatal`. The comparison returns `{findings, counts, coverage, inventory}`; callers can merge findings with their tool-catalog findings and store the remaining fields as `report.discovery`.

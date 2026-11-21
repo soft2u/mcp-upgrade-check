@@ -7,8 +7,9 @@ This repository contains an agent skill and standalone Node.js command-line tool
 ## What it checks
 
 - **Tool catalogs:** removed tools, changed input/output schemas, and metadata changes.
-- **Nested actions:** explicitly configured discovery tools, qualified action names, available schemas, and incomplete discovery coverage.
-- **Behavioral replay:** assertions and selected stable result paths, once against each local stdio server version.
+- **Nested actions:** explicitly configured discovery tools, qualified action names, available schemas, selected action metadata, and incomplete discovery coverage.
+- **Behavioral replay:** assertions and selected stable result paths, once against each local stdio server version, including explicitly expected tool errors and field-absence checks.
+- **Catalog payload:** exact UTF-8 byte measurements of serialized tool catalogs, with the largest per-tool increases. These are not token counts or performance benchmarks.
 - **Runtime readiness:** executable paths, optional Python imports, and optional MCP initialization/tool-list checks.
 - **Isolated Python setup:** copied local packages, separate virtual environments, dependency pins, source hashes, and generated launch configurations.
 
@@ -44,6 +45,14 @@ This deliberately reproduces three regressions and one passing case. It exits wi
 
 For a passing control, use `examples/before-server.json` for both configurations. All four cases should pass with exit code **0**; the example output is [unchanged.md](reports/unchanged.md).
 
+Try a configuration-policy fix and a correctly refused operation:
+
+```sh
+node scripts/check.mjs replay --before-config examples/policy-before-server.json --after-config examples/policy-after-server.json --cases examples/policy-cases.json --out work/policy.json --execute-cases
+```
+
+This synthetic demo makes no network connections or writes. The baseline deliberately fails an offline-policy assertion and the candidate passes it. The report preserves both observations and exits **3** because the failing baseline cannot establish a newly introduced regression. The second case expects `isError: true` with a specific refusal code and passes on both versions. See [policy.md](reports/policy.md).
+
 ## Compare your own versions
 
 Provide one stdio launch configuration per version and explicit cases for the behavior you want to preserve. Review the commands and tool side effects before running them. `--execute-cases` and `--execute-discovery` are execution gates, not sandboxes.
@@ -74,6 +83,8 @@ A clean comparison is evidence for the supplied catalogs, fixtures, and environm
 
 Reports omit raw arguments, response bodies, environment values, and server logs. Keep sensitive launch configurations and fixtures outside the public repository.
 
+JSON reports now use `formatVersion: 3`. Existing findings, case statuses, and exit codes remain; each replay case adds `expectedStatus` and independent `checks.before` / `checks.after` evidence. Tool comparisons also add catalog payload metrics. A candidate passing its checks does not establish output equivalence when the baseline is invalid.
+
 ## Development and contributions
 
 Run the regression suite from the repository root (Node.js 20.10+ for the concurrency option):
@@ -82,7 +93,7 @@ Run the regression suite from the repository root (Node.js 20.10+ for the concur
 node --test --test-concurrency=1
 ```
 
-The tests cover schema direction, incomplete discovery, missing schemas, execution gates, selected-result comparisons, timeouts, process cleanup, report grouping, and runtime setup boundaries. Runtime preparation unit tests use a simulated installer; they do not demonstrate real dependency installation on every platform. Symlink tests may skip where the operating system does not grant the required privileges.
+The tests cover schema direction, incomplete discovery, missing schemas, mapped action metadata, expected refusals, per-version assertion evidence, exact byte measurements, execution gates, selected-result comparisons, timeouts, process cleanup, report grouping, and runtime setup boundaries. Runtime preparation unit tests use a simulated installer; they do not demonstrate real dependency installation on every platform. Symlink tests may skip where the operating system does not grant the required privileges.
 
 Issue reports and pull requests are welcome. Include a minimal synthetic catalog/case, the command used, and your Node.js/operating-system versions. Do not include credentials, proprietary server packages, or private runtime data. For behavior fixes, include a regression case that fails before the change.
 
