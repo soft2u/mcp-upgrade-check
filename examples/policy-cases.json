@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "id": "offline-policy",
+      "tool": "policy_status",
+      "arguments": {},
+      "assertions": [
+        { "path": "/structuredContent/configuredMode", "op": "equals", "value": "off" },
+        { "path": "/structuredContent/liveDiscoveryEnabled", "op": "equals", "value": false }
+      ]
+    },
+    {
+      "id": "write-is-correctly-refused",
+      "tool": "write_item",
+      "arguments": {},
+      "expectedStatus": "tool_error",
+      "assertions": [
+        { "path": "/isError", "op": "equals", "value": true },
+        { "path": "/structuredContent/code", "op": "equals", "value": "READ_ONLY" },
+        { "path": "/structuredContent/internalPath", "op": "notExists" }
+      ]
+    }
+  ]
+}

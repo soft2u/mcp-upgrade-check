@@ -199,3 +199,93 @@ test('live transport failure is not retried and a fatal session skips subsequent
   assert.equal(data.second.status, 'not_run');
   assert.doesNotMatch(JSON.stringify(data), /PRIVATE-/);
 });
+
+const metadataFields = metadata => ({ name: 'name', inputSchema: 'input_schema', metadata });
+
+test('explicit action metadata mappings detect execution changes without exposing values', () => {
+  const fields = metadataFields({ execution_mode: 'execution_mode', read_only: 'readOnly', workflow: 'workflow_hints' });
+  const before = action('lookup', { execution_mode: 'PRIVATE-OFFLINE', readOnly: true, workflow_hints: ['PRIVATE-OLD'] });
+  const after = action('lookup', { execution_mode: 'PRIVATE-LIVE', readOnly: false, workflow_hints: ['PRIVATE-NEW'] });
+  // Without an explicit mapping these descriptor fields remain out of scope.
+  assert.deepEqual(compare([before], [after]).findings, []);
+  const result = compare([before], [after], { fields });
+  assert.equal(result.findings.length, 3);
+  assert.ok(result.findings.every(f => f.severity === 'review' && f.code === 'action_metadata_changed'));
+  assert.ok(result.findings.some(f => f.path.endsWith('/metadata/execution_mode')));
+  assert.deepEqual(result.inventory[0].before.metadata, { execution_mode: 'present', read_only: 'present', workflow: 'present' });
+  assert.deepEqual(result.inventory[0].metadataFields.read_only, { before: 'readOnly', after: 'readOnly' });
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE-/);
+});
+
+test('metadata presence distinguishes absent, null and false values', () => {
+  const fields = metadataFields({ policy: 'policy' });
+  for (const [before, after, expected] of [
+    [{}, { policy: null }, 'action_metadata_added'],
+    [{ policy: null }, {}, 'action_metadata_removed'],
+    [{ policy: null }, { policy: false }, 'action_metadata_changed'],
+    [{}, {}, undefined],
+    [{ policy: null }, { policy: null }, undefined],
+  ]) {
+    const result = compare([action('lookup', before)], [action('lookup', after)], { fields });
+    assert.deepEqual(result.findings.map(f => f.code), expected ? [expected] : []);
+    assert.equal(result.inventory[0].before.metadata.policy, Object.hasOwn(before, 'policy') ? 'present' : 'missing');
+    assert.equal(result.inventory[0].after.metadata.policy, Object.hasOwn(after, 'policy') ? 'present' : 'missing');
+  }
+});
+
+test('metadata comparison ignores object key ordering but preserves array order and input data', () => {
+  const fields = metadataFields({ policy: 'policy' });
+  const before = { nested: { first: true, second: null }, ordered: ['inspect', 'apply'] };
+  const after = { ordered: ['inspect', 'apply'], nested: { second: null, first: true } };
+  const snapshot = structuredClone({ before, after });
+  assert.deepEqual(compare([action('lookup', { policy: before })], [action('lookup', { policy: after })], { fields }).findings, []);
+  assert.deepEqual({ before, after }, snapshot);
+  const changed = { ...after, ordered: ['apply', 'inspect'] };
+  assert.equal(compare([action('lookup', { policy: before })], [action('lookup', { policy: changed })], { fields }).findings[0].code,
+    'action_metadata_changed');
+});
+
+test('metadata labels and descriptor property names handle reserved keys and pointer escaping safely', () => {
+  const mapping = JSON.parse('{"__proto__":"__proto__","a/b~c":"policy"}');
+  const fields = metadataFields(mapping);
+  const before = action('lookup', JSON.parse('{"__proto__":{"private":1},"policy":true}'));
+  const after = action('lookup', JSON.parse('{"__proto__":{"private":2},"policy":false}'));
+  const result = compare([before], [after], { fields });
+  assert.equal(result.findings.length, 2);
+  assert.ok(result.findings.some(f => f.path.endsWith('/metadata/__proto__')));
+  assert.ok(result.findings.some(f => f.path.endsWith('/metadata/a~1b~0c')));
+  assert.equal(Object.hasOwn(result.inventory[0].before.metadata, '__proto__'), true);
+  assert.equal({}.private, undefined);
+});
+
+test('malformed metadata mappings are rejected and validated mappings do not share the mapping object', () => {
+  for (const metadata of [null, [], 'execution_mode', {}, { '': 'field' }, { label: '' }, { label: '/path' }, { label: 2 }]) {
+    assert.throws(() => validateDiscoveryManifest(manifest({ fields: metadataFields(metadata) })), TypeError);
+  }
+  const input = manifest({ fields: metadataFields({ policy: 'execution_mode' }) });
+  const valid = validateDiscoveryManifest(input);
+  valid.sources[0].fields.metadata.policy = 'changed';
+  assert.equal(input.sources[0].fields.metadata.policy, 'execution_mode');
+});
+
+test('different metadata mappings require review without claiming a descriptor change', () => {
+  const before = normalized([action('lookup', { policy: true })], { fields: metadataFields({ policy: 'policy' }) });
+  const after = normalized([action('lookup', { new_policy: true })], { fields: metadataFields({ policy: 'new_policy' }) });
+  const result = compareDiscovered(before, after);
+  assert.deepEqual(result.findings.map(f => f.code), ['action_metadata_mapping_changed']);
+  assert.deepEqual(result.inventory[0].metadataFields.policy, { before: 'policy', after: 'new_policy' });
+  const unmapped = compareDiscovered(normalized([action()]), before);
+  assert.equal(unmapped.findings[0].code, 'action_metadata_mapping_changed');
+  assert.equal(unmapped.inventory[0].before.metadata.policy, 'unmapped');
+});
+
+test('metadata coverage on added and removed actions does not create redundant metadata findings', () => {
+  const fields = metadataFields({ policy: 'policy' });
+  const added = compare([], [action('lookup', { policy: null })], { fields });
+  assert.deepEqual(added.findings.map(f => f.code), ['discovered_action_added']);
+  assert.equal(added.inventory[0].before.metadata.policy, 'absent');
+  assert.equal(added.inventory[0].after.metadata.policy, 'present');
+  const removed = compare([action('lookup', { policy: null })], [], { fields });
+  assert.deepEqual(removed.findings.map(f => f.code), ['discovered_action_removed']);
+  assert.equal(removed.inventory[0].after.metadata.policy, 'absent');
+});

@@ -1,4 +1,5 @@
 import { compareSchemas } from './schema-diff.mjs';
+import { isDeepStrictEqual } from 'node:util';
 
 const own = (value, key) => Object.hasOwn(value, key);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -41,11 +42,21 @@ export function validateDiscoveryManifest(input) {
     ids.add(source.id);
     if (!object(source.arguments)) throw new TypeError('Discovery arguments must be an object.');
     pointer(source.actionsPath);
-    keys(source.fields, ['name', 'description', 'inputSchema', 'outputSchema'], 'Discovery fields');
+    keys(source.fields, ['name', 'description', 'inputSchema', 'outputSchema', 'metadata'], 'Discovery fields');
     if (!nonempty(source.fields.name)) throw new TypeError('Discovery fields must map an action name.');
-    for (const field of Object.values(source.fields)) {
+    for (const [key, field] of Object.entries(source.fields)) {
+      if (key === 'metadata') continue;
       if (!nonempty(field)) throw new TypeError('Discovery field mappings must be nonempty property names.');
       if (field.startsWith('/')) throw new TypeError('Discovery fields use property names, not JSON Pointers.');
+    }
+    if (own(source.fields, 'metadata')) {
+      if (!object(source.fields.metadata) || !Object.keys(source.fields.metadata).length) {
+        throw new TypeError('Discovery metadata must map at least one label to a descriptor property name.');
+      }
+      for (const [label, field] of Object.entries(source.fields.metadata)) {
+        if (!nonempty(label) || !nonempty(field)) throw new TypeError('Discovery metadata labels and property names must be nonempty strings.');
+        if (field.startsWith('/')) throw new TypeError('Discovery metadata fields use property names, not JSON Pointers.');
+      }
     }
     if (own(source, 'successPath')) pointer(source.successPath);
     if (own(source, 'successValue') && !own(source, 'successPath')) throw new TypeError('successValue requires successPath.');
@@ -61,7 +72,9 @@ export function validateDiscoveryManifest(input) {
     for (const key of ['totalPath', 'nextCursorPath', 'truncatedPath']) {
       if (own(completeness, key)) pointer(completeness[key]);
     }
-    return { ...source, fields: { ...source.fields }, completeness: { allActionsRequested: false, ...completeness } };
+    return { ...source, fields: { ...source.fields,
+      ...(source.fields.metadata ? { metadata: { ...source.fields.metadata } } : {}),
+    }, completeness: { allActionsRequested: false, ...completeness } };
   });
   return { sources };
 }
@@ -213,6 +226,11 @@ export function normalizeDiscovery(capture, manifest) {
         if (typeof item[source.fields.description] !== 'string') throw new TypeError('Discovered description must be a string when present.');
         action.description = item[source.fields.description];
       }
+      if (source.fields.metadata) {
+        action.metadata = Object.fromEntries(Object.entries(source.fields.metadata).map(([label, field]) => [label,
+          own(item, field) ? { field, present: true, value: item[field] } : { field, present: false },
+        ]));
+      }
       base.actions.push(action);
       actions.push(action);
     }
@@ -229,9 +247,13 @@ function countActions(actions) {
   };
 }
 
-function presence(action) {
-  return action ? { present: true, inputSchema: own(action, 'inputSchema') ? 'present' : 'missing', outputSchema: own(action, 'outputSchema') ? 'present' : 'missing' }
+function presence(action, metadataLabels = []) {
+  const result = action ? { present: true, inputSchema: own(action, 'inputSchema') ? 'present' : 'missing', outputSchema: own(action, 'outputSchema') ? 'present' : 'missing' }
     : { present: false, inputSchema: 'absent', outputSchema: 'absent' };
+  if (metadataLabels.length) result.metadata = Object.fromEntries(metadataLabels.map(label => [label,
+    !action ? 'absent' : !own(action.metadata ?? {}, label) ? 'unmapped' : action.metadata[label].present ? 'present' : 'missing',
+  ]));
+  return result;
 }
 
 /** Compare observed contracts. Incomplete candidate discovery never confirms removals. */
@@ -258,8 +280,13 @@ export function compareDiscovered(before, after) {
   for (const id of [...new Set([...oldActions.keys(), ...newActions.keys()])].sort()) {
     const oldAction = oldActions.get(id), newAction = newActions.get(id), action = newAction ?? oldAction;
     const path = `/tools/${escaped(id)}`;
+    const metadataLabels = [...new Set([...Object.keys(oldAction?.metadata ?? {}), ...Object.keys(newAction?.metadata ?? {})])].sort();
     inventory.push({ id, sourceId: action.sourceId, executionTool: action.executionTool, name: action.name,
-      before: presence(oldAction), after: presence(newAction) });
+      before: presence(oldAction, metadataLabels), after: presence(newAction, metadataLabels),
+      ...(metadataLabels.length ? { metadataFields: Object.fromEntries(metadataLabels.map(label => [label, {
+        before: oldAction?.metadata?.[label]?.field ?? null, after: newAction?.metadata?.[label]?.field ?? null,
+      }])) } : {}),
+    });
     const add = (severity, code, suffix, message) => findings.push({ severity, code, tool: id, path: path + suffix, message });
     if (!newAction) {
       const complete = newSources.get(action.sourceId)?.coverage.status === 'complete';
@@ -286,6 +313,20 @@ export function compareDiscovered(before, after) {
     }
     if (oldAction && oldAction.description !== newAction.description) {
       add('review', 'tool_metadata_changed', '/description', 'Action description changed; inspect effects on selection or execution guidance.');
+    }
+    if (oldAction) for (const label of metadataLabels) {
+      const oldMetadata = oldAction.metadata?.[label], newMetadata = newAction.metadata?.[label];
+      const suffix = '/metadata/' + escaped(label);
+      if (!oldMetadata || !newMetadata || oldMetadata.field !== newMetadata.field) {
+        add('review', 'action_metadata_mapping_changed', suffix,
+          'Metadata mapping differs between captures; a change in the descriptor value is not established.');
+      } else if (oldMetadata.present !== newMetadata.present) {
+        add('review', newMetadata.present ? 'action_metadata_added' : 'action_metadata_removed', suffix,
+          `Mapped action metadata is ${newMetadata.present ? 'now present' : 'no longer present'}; review execution requirements or behavior. Values are omitted.`);
+      } else if (oldMetadata.present && !isDeepStrictEqual(oldMetadata.value, newMetadata.value)) {
+        add('review', 'action_metadata_changed', suffix,
+          'Mapped action metadata changed; review execution requirements or behavior. Values are omitted.');
+      }
     }
   }
   const oldCounts = countActions(before.actions), newCounts = countActions(after.actions);

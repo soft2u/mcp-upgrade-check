@@ -8,6 +8,16 @@ Mode: compare. Tools: 4 before, 3 after.
 
 Baseline: baseline.json. Candidate: candidate.json.
 
+## Catalog payload measurement
+
+| Baseline bytes | Candidate bytes | Change |
+| ---: | ---: | ---: |
+| 810 | 762 | -48 (-5.93%) |
+
+Measured as UTF-8 bytes of the compact JSON tools array, including advertised metadata and schemas. Excludes protocol envelopes, pagination, and host-specific formatting. This is not a token count, latency measurement, or proof of task efficiency.
+
+Largest increases per tool: search\_items (+38 bytes).
+
 ## Contract findings
 
 4 findings: 3 breaking contract risks, 0 review, 1 informational.

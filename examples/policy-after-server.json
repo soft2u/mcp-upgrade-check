@@ -1,0 +1,5 @@
+{
+  "command": "node",
+  "args": ["examples/policy-server.mjs", "candidate"],
+  "cwd": ".."
+}

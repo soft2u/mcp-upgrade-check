@@ -14,6 +14,14 @@ Server versions: upgrade-check-demo baseline → upgrade-check-demo baseline.
 
 Negotiated protocols: 2025-11-25 → 2025-11-25.
 
+## Catalog payload measurement
+
+| Baseline bytes | Candidate bytes | Change |
+| ---: | ---: | ---: |
+| 810 | 810 | 0 (0.00%) |
+
+Measured as UTF-8 bytes of the compact JSON tools array, including advertised metadata and schemas. Excludes protocol envelopes, pagination, and host-specific formatting. This is not a token count, latency measurement, or proof of task efficiency.
+
 ## Contract findings
 
 0 findings: 0 breaking contract risks, 0 review, 0 informational.
@@ -25,7 +33,7 @@ No differences detected by the supported checks.
 4 cases: **4 passed, 0 regressions, 0 inconclusive**.
 
 Passed case IDs: price-keeps-major-currency-units, existing-search-request, legacy-client-status, unchanged-health-check.
-All specified checks passed for these cases. Per-case tool names and statuses remain in the JSON report.
+All specified checks passed for these cases, including any explicitly expected tool errors. Per-case tool names and statuses remain in the JSON report.
 
 
 ## Coverage limits

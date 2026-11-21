@@ -79,13 +79,33 @@ Cases specify exactly which calls to make and which parts of the result matter:
 
 Each case has a unique nonempty `id`, a `tool` name, and an `arguments` object. Supply at least one entry in `assertions` or `comparePaths`; either array may otherwise be omitted. Assertion paths and comparison paths are JSON Pointers into the tool result, for example `/structuredContent/id` or `/content/0/text`. Escape `~` as `~0` and `/` as `~1` inside a property-name segment.
 
+Optional `expectedStatus` is `"success"` (default) or `"tool_error"`. Use the latter when a correct response is an MCP tool result with `isError: true`, such as a refused write. Assert stable error fields as well; an arbitrary failure is not evidence of the expected refusal. Application-level `{success:false}` inside a normal MCP result still has transport status `"success"` and should be checked through assertions. Protocol errors, malformed responses, timeouts, and missing tools cannot be declared expected outcomes.
+
 - `equals` compares the selected value to `value`.
 - `exists` requires the selected path to be present and has no `value` field.
+- `notExists` requires the selected path to be absent and has no `value` field. A present `null` is not absence.
 - `type` checks the selected value against `value`: `string`, `number`, `integer`, `boolean`, `object`, `array`, or `null`.
 
 Choose stable, meaningful paths. Do not compare timestamps, request identifiers, randomized text, or entire result objects merely because they are available. Empty comparison paths do not imply that outputs were equivalent; only the chosen assertions and other explicit checks provide evidence.
 
 Obtain valid cases from known client requests or controlled fixtures. Establish expected results independently of the candidate version. A failing baseline assertion invalidates that case as evidence of a newly introduced regression.
+
+For a negative test, for example:
+
+```json
+{
+  "id": "write-refused",
+  "tool": "write_item",
+  "arguments": {},
+  "expectedStatus": "tool_error",
+  "assertions": [
+    { "path": "/structuredContent/code", "op": "equals", "value": "READ_ONLY" },
+    { "path": "/structuredContent/internalPath", "op": "notExists" }
+  ]
+}
+```
+
+Use separate explicit launch configurations to exercise relevant policy modes or settings. The runner does not infer configuration variants or contact external fixture services on your behalf. Asserting a reported policy flag does not prove absence of network requests or other side effects; those require a controlled observer or separate probe.
 
 ## Running the replay
 
@@ -105,12 +125,16 @@ Use the generated Markdown for review and JSON for further processing. Both have
 
 Markdown groups title/description changes and passing cases, while JSON preserves the full findings and per-case results. Defaults, constraints, unsupported schema changes, missing evidence, and failed/inconclusive cases remain detailed. This changes presentation, not verdicts: metadata-only differences can still require review because descriptions influence agent choices.
 
-- A successful, valid baseline call followed by a candidate tool or protocol error is an observed regression for that case. A timeout or failed connection is inconclusive.
+- A baseline satisfying its expected response status and declared checks followed by a candidate violating them is an observed regression for that case. This includes a refusal unexpectedly becoming success. A timeout or failed connection is inconclusive.
 - If the candidate no longer advertises a requested tool, its call is not attempted. Report this as a catalog-discovery regression, not a reproduced tool-call error.
 - A candidate assertion failure can establish a regression only when the baseline satisfies that assertion set.
 - Differences at selected stable paths are observable changes; interpret them against the intended contract and disclose the selection.
 - Catalog/schema differences remain static contract risks until appropriate runtime evidence establishes their effect.
 - Baseline failures and unavailable evidence require review, not a claim that the candidate caused the problem.
+
+Format-version 3 reports preserve independent `checks.before` and `checks.after` with `pass`, `fail`, or `unavailable` status and value-free failure details. If the baseline fails but the candidate passes, the overall case remains inconclusive for upgrade attribution while the candidate's passing checks stay visible. These checks cover expected response status, assertions, and comparison-path availability. When the baseline is valid, candidate checks also include declared cross-version value comparisons; those comparisons cannot establish equivalence when the baseline is invalid. A failing baseline can reflect an existing bug or an unsuitable fixture, so inspect the evidence before deciding which.
+
+Tool catalog comparisons also report `metrics.catalogPayload`: byte counts for `JSON.stringify(tools)` encoded as UTF-8, their difference, and up to five tools with the largest increases. This includes advertised tool metadata and schemas but excludes JSON-RPC envelopes, pagination, and client formatting. An empty baseline has no percentage. Counts describe this serialization, not model tokens, response latency, or end-to-end agent efficiency; they do not change the compatibility verdict. Action-only comparisons have no tool-catalog metric.
 
 One execution per version cannot separate random variation, transient services, and persistent changes. The runner does not test remote HTTP transport, authentication flows, subscriptions, task lifecycles, or all possible inputs. Report those limits when relevant to the user's upgrade decision.
 

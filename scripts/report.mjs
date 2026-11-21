@@ -99,6 +99,9 @@ function discoveryLines(discovery) {
   }
   const coverage = discovery.coverage ?? [];
   const inventory = discovery.inventory ?? [];
+  const metadataLabels = [...new Set(inventory.flatMap(entry => Object.keys(entry.metadataFields ?? {})))].sort();
+  if (metadataLabels.length) lines.push(
+    `Explicitly mapped action metadata: ${metadataLabels.map(escape).join(', ')}. Field mappings and presence are recorded in JSON; values are omitted.`, '');
   if (coverage.length) {
     lines.push('| Source / execution tool | Baseline | Candidate | Input schemas before → after |',
       '| --- | --- | --- | --- |');
@@ -132,16 +135,44 @@ function caseLines(cases) {
   const counts = { pass: 0, regression: 0, inconclusive: 0, other: 0 };
   for (const entry of cases) counts[Object.hasOwn(counts, entry.status) ? entry.status : 'other']++;
   lines.push(`${cases.length} cases: **${counts.pass} passed, ${counts.regression} regressions, ${counts.inconclusive} inconclusive**${counts.other ? `, ${counts.other} other` : ''}.`, '');
-  const compactPass = entry => entry.status === 'pass' && entry.before === 'success'
-    && entry.after === 'success' && !entry.failures?.length && !entry.reason;
+  const compactPass = entry => entry.status === 'pass' && entry.before === (entry.expectedStatus ?? 'success')
+    && entry.after === (entry.expectedStatus ?? 'success') && !entry.failures?.length && !entry.reason;
   const passed = cases.filter(compactPass);
   if (passed.length) lines.push(`Passed case IDs: ${passed.map(entry => escape(entry.id)).join(', ')}.`,
-    'All specified checks passed for these cases. Per-case tool names and statuses remain in the JSON report.', '');
+    'All specified checks passed for these cases, including any explicitly expected tool errors. Per-case tool names and statuses remain in the JSON report.', '');
   for (const entry of cases.filter(entry => !compactPass(entry))) {
     lines.push(`- **${escape(entry.status)}** ${escape(entry.id)} (${escape(entry.tool)}): ${escape(entry.reason ?? (entry.status === 'pass' ? 'All specified checks passed.' : 'No reason supplied.'))} Baseline: ${escape(entry.before)}; candidate: ${escape(entry.after)}.`);
-    for (const failure of entry.failures ?? []) lines.push(`  - ${escape(failure.path)}: ${escape(failure.check)} / ${escape(failure.reason)}`);
+    const shownFailures = new Set();
+    if (entry.checks) {
+      lines.push(`  Declared checks — baseline: **${escape(entry.checks.before?.status ?? 'unavailable')}**; candidate: **${escape(entry.checks.after?.status ?? 'unavailable')}**. Expected response: ${escape(entry.expectedStatus ?? 'success')}.`);
+      for (const side of ['before', 'after']) {
+        for (const failure of entry.checks[side]?.failures ?? []) {
+          shownFailures.add(JSON.stringify(failure));
+          lines.push(`  - ${side === 'before' ? 'Baseline' : 'Candidate'} ${escape(failure.path)}: ${escape(failure.check)} / ${escape(failure.reason)}`);
+        }
+      }
+    }
+    for (const failure of entry.failures ?? []) {
+      if (!shownFailures.has(JSON.stringify(failure)))
+        lines.push(`  - ${escape(failure.path)}: ${escape(failure.check)} / ${escape(failure.reason)}`);
+    }
   }
   lines.push('');
+  return lines;
+}
+
+function metricLines(metrics) {
+  const payload = metrics?.catalogPayload;
+  if (!payload) return [];
+  const delta = Number.isFinite(payload.deltaBytes) ? `${payload.deltaBytes > 0 ? '+' : ''}${payload.deltaBytes}` : 'unknown';
+  const percent = Number.isFinite(payload.deltaPercent) ? ` (${payload.deltaPercent > 0 ? '+' : ''}${payload.deltaPercent.toFixed(2)}%)` : '';
+  const lines = ['## Catalog payload measurement', '',
+    '| Baseline bytes | Candidate bytes | Change |', '| ---: | ---: | ---: |',
+    `| ${count(payload.beforeBytes)} | ${count(payload.afterBytes)} | ${delta}${percent} |`, '',
+    'Measured as UTF-8 bytes of the compact JSON tools array, including advertised metadata and schemas. Excludes protocol envelopes, pagination, and host-specific formatting. This is not a token count, latency measurement, or proof of task efficiency.', ''];
+  if (payload.largestIncreases?.length) {
+    lines.push('Largest increases per tool: ' + payload.largestIncreases.map(item => `${escape(item.tool)} (+${count(item.deltaBytes)} bytes)`).join(', ') + '.', '');
+  }
   return lines;
 }
 
@@ -160,6 +191,7 @@ export function renderMarkdown(report) {
   if (report.servers) lines.push(`Server versions: ${escape(report.servers.before?.name)} ${escape(report.servers.before?.version)} → ${escape(report.servers.after?.name)} ${escape(report.servers.after?.version)}.`, '');
   if (report.protocolVersions) lines.push(`Negotiated protocols: ${escape(report.protocolVersions.before)} → ${escape(report.protocolVersions.after)}.`, '');
   if (report.discovery) lines.push(...discoveryLines(report.discovery));
+  if (report.mode !== 'compare-actions') lines.push(...metricLines(report.metrics));
 
   lines.push('## Contract findings', '', `${summary.total} findings: ${countText(summary.severityCounts)}.`, '');
   if (!summary.total) lines.push('No differences detected by the supported checks.', '');

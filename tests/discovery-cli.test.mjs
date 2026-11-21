@@ -78,3 +78,29 @@ test('combined replay discovers in the same sessions and preserves behavioral re
   assert.deepEqual(calls,[{version:'1',name:'search_actions'},{version:'1',name:'execute_action'},{version:'2',name:'search_actions'},{version:'2',name:'execute_action'}]);
   assert.doesNotMatch(JSON.stringify(report)+await readFile(join(dir,'out.md'),'utf8'),/PRIVATE-/);
 });
+
+test('offline action metadata comparison requires review and keeps values out of both reports', async t => {
+  const {dir} = await setup(t);
+  const metadataManifest = structuredClone(manifest);
+  metadataManifest.sources[0].fields.metadata = { description: 'executionPolicy', read_only: 'readOnly' };
+  await writeFile(join(dir, 'discovery.json'), JSON.stringify(metadataManifest));
+  for (const version of ['before', 'after']) {
+    const response = { nested: { content: [], structuredContent: { actions: [{
+      name: 'lookup', input_schema: { type: 'object' },
+      executionPolicy: `PRIVATE-${version}`, readOnly: version === 'before',
+    }] } } };
+    await writeFile(join(dir, `${version}-capture.json`), JSON.stringify(response));
+  }
+  const result = await run(['compare-actions', '--before', join(dir, 'before-capture.json'),
+    '--after', join(dir, 'after-capture.json'), '--discovery', join(dir, 'discovery.json'),
+    '--out', join(dir, 'out.json')]);
+  assert.equal(result.code, 3, result.stderr);
+  const report = JSON.parse(await readFile(join(dir, 'out.json'), 'utf8'));
+  const markdown = await readFile(join(dir, 'out.md'), 'utf8');
+  assert.equal(report.verdict, 'review_required');
+  assert.equal(report.findings.length, 2);
+  assert.ok(report.findings.every(f => f.code === 'action_metadata_changed' && f.severity === 'review'));
+  assert.match(markdown, /Mapped action metadata changed/);
+  assert.doesNotMatch(JSON.stringify(report) + markdown + result.stdout + result.stderr, /PRIVATE-/);
+  await assert.rejects(readFile(join(dir, 'trace.jsonl')), {code: 'ENOENT'});
+});

@@ -1,6 +1,6 @@
 {
-  "formatVersion": 2,
-  "generatedAt": "2026-11-14T13:50:52.158Z",
+  "formatVersion": 3,
+  "generatedAt": "2026-11-21T20:23:41.841Z",
   "mode": "replay",
   "verdict": "no_detected_issues_in_checked_scope",
   "toolCounts": {
@@ -13,32 +13,76 @@
       "id": "price-keeps-major-currency-units",
       "tool": "lookup_item",
       "status": "pass",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
       "failures": []
     },
     {
       "id": "existing-search-request",
       "tool": "search_items",
       "status": "pass",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
       "failures": []
     },
     {
       "id": "legacy-client-status",
       "tool": "legacy_status",
       "status": "pass",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
       "failures": []
     },
     {
       "id": "unchanged-health-check",
       "tool": "health",
       "status": "pass",
+      "expectedStatus": "success",
       "before": "success",
       "after": "success",
+      "checks": {
+        "before": {
+          "status": "pass",
+          "failures": []
+        },
+        "after": {
+          "status": "pass",
+          "failures": []
+        }
+      },
       "failures": []
     }
   ],
@@ -48,6 +92,18 @@
     "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
     "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
   ],
+  "metrics": {
+    "catalogPayload": {
+      "unit": "utf8_bytes",
+      "representation": "compact_json_tools_array",
+      "beforeBytes": 810,
+      "afterBytes": 810,
+      "deltaBytes": 0,
+      "deltaPercent": 0,
+      "largestIncreases": [],
+      "interpretation": "Serialized catalog size only; not tokens, latency, or task efficiency."
+    }
+  },
   "protocolVersions": {
     "before": "2025-11-25",
     "after": "2025-11-25"

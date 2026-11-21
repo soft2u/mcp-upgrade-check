@@ -1,6 +1,6 @@
 {
-  "formatVersion": 2,
-  "generatedAt": "2026-11-14T13:50:35.309Z",
+  "formatVersion": 3,
+  "generatedAt": "2026-11-21T20:23:41.354Z",
   "mode": "compare",
   "verdict": "contract_risk_detected",
   "toolCounts": {
@@ -44,6 +44,25 @@
     "Replay checks only the listed cases and assertions. No check proves an upgrade universally safe.",
     "No automatic output-schema validation, auth-flow, remote HTTP, subscription, task, or concurrent-session testing."
   ],
+  "metrics": {
+    "catalogPayload": {
+      "unit": "utf8_bytes",
+      "representation": "compact_json_tools_array",
+      "beforeBytes": 810,
+      "afterBytes": 762,
+      "deltaBytes": -48,
+      "deltaPercent": -5.93,
+      "largestIncreases": [
+        {
+          "tool": "search_items",
+          "beforeBytes": 197,
+          "afterBytes": 235,
+          "deltaBytes": 38
+        }
+      ],
+      "interpretation": "Serialized catalog size only; not tokens, latency, or task efficiency."
+    }
+  },
   "sources": {
     "before": "baseline.json",
     "after": "candidate.json"

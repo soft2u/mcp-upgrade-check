@@ -11,7 +11,7 @@ Produce evidence about changes between a known baseline and a candidate MCP serv
 
 - **Catalog comparison:** Use existing catalog JSON files. This reads local files and does not launch servers or call their tools.
 - **Local replay:** Use reviewed stdio server launch configurations and explicit test cases. This launches both versions and calls each selected tool once per version.
-- **Nested actions:** When tools dispatch named actions, use an explicit discovery manifest to compare the action inventory and available schemas. Read [references/discovery.md](references/discovery.md); a stable `tools/list` does not establish that nested actions stayed compatible.
+- **Nested actions:** When tools dispatch named actions, use an explicit discovery manifest to compare the action inventory, available schemas, and explicitly mapped metadata such as execution mode. Read [references/discovery.md](references/discovery.md); a stable `tools/list` does not establish that nested actions stayed compatible.
 - **Runtime readiness:** For source packages or launch failures, read [references/runtime.md](references/runtime.md). Check an existing runtime first; prepare isolated Python runtimes only when needed. A missing dependency or blocked loopback connection is a setup problem until evidence attributes it to the upgrade.
 
 Start with the supplied artifacts. Identify which version is the baseline and what behavior the user needs to preserve. Do not invent test inputs, stable outputs, or expected results when those choices could affect real data. Read [references/workflow.md](references/workflow.md) for input formats, execution boundaries, and interpretation.
@@ -36,6 +36,8 @@ node scripts/check.mjs replay --before-config examples/before-server.json --afte
 
 For real servers, use isolated test data and the user's authorized environment. The explicit `--execute-cases` switch is required for tool-call execution. Do not silently add cases, retry state-changing calls, or expand the scope to live accounts.
 
+For a correctly refused operation, declare `expectedStatus: "tool_error"` and assert its stable error fields. The default remains `"success"`; protocol and transport failures cannot be expected outcomes. Use `notExists` when a field must be absent. Configuration-sensitive behavior needs cases launched with the relevant configuration; a response assertion alone does not prove that no backend request or other side effect occurred.
+
 Add `--discovery discovery.json` to replay to collect configured action catalogs in the same sessions. Discovery calls only the manifest's discovery tools, never the actions they describe. For discovery without behavioral cases:
 
 ```sh
@@ -55,5 +57,7 @@ Separate:
 - **Review items:** Unverified effects, invalid baselines, and checks outside the evidence available.
 
 Explain the affected tools or cases, the evidence, and the next useful check. State the scope actually tested. A clean report supports only that scope; it does not establish that the upgrade is safe for every caller or environment.
+
+Read both `checks.before` and `checks.after` even when the baseline fails. A passing candidate is useful evidence, but a failed baseline cannot establish a newly introduced regression. Catalog payload metrics measure compact UTF-8 JSON bytes only; do not call them token savings, lower latency, or improved task success without separate measurements.
 
 These checks cover saved catalogs, configured nested discovery, and local stdio request/response replay. They do not test HTTP transports, authentication flows, subscriptions, tasks, or infer stability from repeated runs. A configuration-specific behavior defect may require a separate controlled probe; a catalog diff alone cannot expose it.
